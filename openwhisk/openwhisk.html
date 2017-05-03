@@ -29,6 +29,35 @@
 </div>
 </script>
 
+<script type="text/x-red" data-template-name="openwhisk-localservice">
+
+<div class="form-row">
+    <label for="node-config-input-docker"><i class="fa fa-cloud"></i> Docker</label>
+    <select type="text" id="node-config-input-docker">
+        <option value="local">Docker engine on localhost</option>
+        <option value="url">Remote docker API</option>
+    </select>
+</div>
+
+<div class="form-row dockerurl" >
+    <label for="node-config-input-dockerurl"><i class="fa fa-cloud"></i> Url</label>
+    <input type="text" id="node-config-input-dockerurl">
+</div>
+
+<div class="form-row">
+        <label for="node-input-resolution"><i class="fa fa-envelope"></i> Resolution</label>
+        <select type="text" id="node-input-resolution">
+            <option value="ip">IP</option>
+            <option value="dns">DNS</option>
+        </select>
+</div>
+
+<div class="form-row">
+    <label for="node-config-input-name"><i class="fa fa-tag"></i> <span data-i18n="node-red:common.label.name"></span></label>
+    <input type="text" id="node-config-input-name" data-i18n="[placeholder]node-red:common.label.name">
+</div>
+</script>
+
 <script type="text/x-red" data-template-name="openwhisk-trigger">
 <div class="form-row">
     <label for="node-input-service"><i class="fa fa-cloud"></i> Service</label>
@@ -77,13 +106,27 @@
 <div class="form-row">
     <label for="node-input-action"><i class="fa fa-cog"></i> Action</label>
     <input type="text"  style="width: 45%" id="node-input-action">
-    <div style="display: inline-block; width: 95px; margin: 5px 35px 0 10px;">
+    <div class="edit-source" style="display: inline-block; width: 95px; margin: 5px 35px 0 10px;">
       <label for="node-input-edit" style="width: 75px;">Allow Edits</label>
       <input type="checkbox" id="node-input-edit" style="width: 14px; margin-top: 0px;">
   </div>
 </div>
 
-<div class="form-row action-source" style="display: none;">
+
+<div class="form-row">
+    <label for="node-input-runtime"><i class="fa fa-cloud"></i> Runtime</label>
+    <select type="text" id="node-input-runtime">
+        <option value="service">OpenWhisk service</option>
+        <option value="local">Local</option>
+    </select>
+</div>
+
+<div class="form-row action-localservice">
+    <label for="node-input-localservice"><i class="fa fa-cloud"></i> Docker</label>
+    <input type="text" id="node-input-localservice">
+</div>
+
+<div class="form-row action-source node-input-parameters-container-label" style="display: none;">
   <label><i class="fa fa-list"></i> Parameters</label>
   <input type="hidden" id="node-input-parameters" autofocus="autofocus">
 </div>
@@ -110,6 +153,7 @@
 </script>
 
 <script type="text/x-red" data-help-name="openwhisk-service"></script>
+<script type="text/x-red" data-help-name="openwhisk-localservice"></script>
 
 <script type="text/x-red" data-help-name="openwhisk-trigger">
 <p>Invoke an OpenWhisk trigger.</p>
@@ -145,6 +189,30 @@ action; any other type is ignored.</p>
         label: function() {
             return this.name || this.namespace ||  "OpenWhisk Service";
         }
+    });
+
+
+    RED.nodes.registerType('openwhisk-localservice', {
+        category: 'config',
+        defaults: {
+            name: { value: "" },
+            resolution: {value: "ip", required:true},
+            dockerurl: { value: ""},
+            docker: { value: "local", required: true }
+        },
+        label: function() {
+            return this.name || this.namespace ||  "Docker engine on localhost";
+        },
+        oneditprepare: function () {
+            if (this.docker == "local") {
+                $('.dockerurl').hide();
+            }
+
+            $("#node-config-input-docker").on("change",function() {
+                if (this.value === "local") { $('.dockerurl').hide(); }
+                else { $('.dockerurl').show(); }
+            });
+        },
     });
 
     RED.nodes.registerType('openwhisk-trigger', {
@@ -326,8 +394,14 @@ action; any other type is ignored.</p>
 
       $.getJSON(url)
         .done(function (result) {
-          node.editor.setValue(result.exec.code);
-          node.editor.clearSelection();
+
+          if(result.exec.kind.indexOf("nodejs") < 0){
+              $('.edit-source').hide();
+              $('.action-source').hide();
+              $(".fa-cog").removeClass("fa-spin");
+              return;
+          }
+          
           $("#node-input-edit").prop("checked", false);
           $(".fa-cog").removeClass("fa-spin")
           $("#node-input-parameters-container").editableList('empty');
@@ -337,6 +411,9 @@ action; any other type is ignored.</p>
             param.disabled = true;
             $("#node-input-parameters-container").editableList('addItem', param);
           });
+
+          node.editor.setValue(result.exec.code);
+          node.editor.clearSelection();
           makeActionReadOnly(node.editor, true);
         })
         .fail(function () {
@@ -397,13 +474,18 @@ action; any other type is ignored.</p>
             action: { value: "" },
             params: { value: [{key: "", value: "", disabled: true}] },
             service: { type:"openwhisk-service", required: true },
-            edit: { value: false }
+            localservice: { type:"openwhisk-localservice", required: false },
+            edit: { value: false },
+            runtime: { value: "service", required: true }
         },
         inputs: 1,
         outputs: 1,
         color: "#6C9FC3",
         icon: "openwhisk.png",
         paletteLabel:"OpenWhisk",
+        labelStyle: function() {
+            return this.runtime == "local" ? "node_label_italic":"";
+        },
         oneditprepare: function () {
           // create editor dom element
           this.editor = RED.editor.createEditor({
@@ -434,6 +516,21 @@ action; any other type is ignored.</p>
               retrieveActionSource(this);
           }
 
+        //   if (this.locally) {
+        //       $('.action-localservice').show();
+        //   // otherwise, if we have the correct parameters, retrieve it
+        //   // from the platform.
+        //   }
+
+          if (this.runtime == "service") {
+                $('.action-localservice').hide();
+          }
+
+          $("#node-input-runtime").on("change",function() {
+                if (this.value === "service") { $('.action-localservice').hide(); }
+                else {$('.action-localservice').show(); }
+          });
+            
           if (this.service) {
               retrieveNamespaceListAction(this);
           }
@@ -464,6 +561,15 @@ action; any other type is ignored.</p>
               that.editor.focus();
             } else {
               retrieveActionSource(that);
+            }
+          });
+
+          $("#node-input-locally").change(function () {
+            var checked = $("#node-input-locally").prop("checked");
+            if (checked) {
+              $('.action-localservice').show();
+            } else {
+              $('.action-localservice').hide();
             }
           });
         },

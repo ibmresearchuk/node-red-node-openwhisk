@@ -183,7 +183,7 @@ module.exports = function(RED) {
           })
 
           var action = { 
-            exec: { kind: 'nodejs', code: n.func },
+            exec: { kind: 'nodejs:6', code: n.func },
             parameters: params
           };
 

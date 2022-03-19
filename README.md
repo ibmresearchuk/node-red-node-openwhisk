@@ -5,8 +5,8 @@ A set of Node-RED nodes for interacting with IBM Bluemix OpenWhisk.
 
 ## Install
 
-Run the following command in the user directory of your Node-RED install. This is
-usually `~/.node-red`.
+Either use the EDitor - Menu - Manage Palette - Install option, or run the following command in the
+user directory of your Node-RED install. This is usually `~/.node-red`.
 
 ```
 npm install node-red-node-openwhisk
